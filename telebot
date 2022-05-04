@@ -1,0 +1,852 @@
+#!/usr/bin/bash
+
+# Requirements of Packages:
+# You should have these following packages to run this program:
+# 1. jq | 2. bc
+# jq: for processing json inputs and fikter.
+# bc: for math calculation.
+
+# Setup Guidance:
+
+# You Can Set Token and MyID without configuration file.
+# Put the credential in the empty quotes.
+# For another id make a seprate quotes after a space and put id on it.
+
+TOKEN=""
+declare -a MYID=(
+''
+)
+
+if [[ ${1} == "--token" ]]
+then
+  GET_TOKEN="${2}"
+  if [[ ${#GET_TOKEN} -gt 0 ]]
+  then
+    :
+  else
+      echo "Token missing."
+      exit 1
+  fi
+  if [[ ${3} == "--myid" ]]
+  then
+    GET_MYID="${4}"
+    if [[ ${#GET_MYID} -gt 0 ]]
+    then
+      :
+    else
+      echo "Myid missing."
+      exit 1
+    fi
+    cat <<- CONF > telebot.conf
+{
+  "token": "${2}",
+  "get": [
+    {
+      "myid": "${4}"
+   }//,
+
+// Add more id's if have.
+// remove comments '//' to begin.
+//    {
+//      "myid": "..."
+//    },
+ 
+//    {
+//      "myid": "..."
+//    }
+
+  ]
+}
+CONF
+echo "Configuration file has been setup successful."
+exit 0
+  fi
+fi
+
+if [[ ! ${#TOKEN} -gt 0 ]] && [[ ! ${#MYID} -gt 0 ]]
+then
+if [[ -f telebot.conf ]]
+then
+TOKEN=$(cat telebot.conf | sed 's/\/\/.*//' | jq .token -M -r)
+declare -a MYID=(
+$(cat telebot.conf | sed 's/\/\/.*//' | jq .get[].myid -M -r)
+)
+else
+echo "Bot configuration file not found.
+Configure bot by using command:
+./telebot --token <[token]> --myid <[telegram id]>
+
+e.g:
+  ./telebot --token 18171111001:AbsDCwtGJlaPCyaBCcTwUiaPu_UTFwuY7agWs --myid 123456789 
+"
+exit 1
+fi
+fi
+
+NETCONF() {
+curl -Is http://www.google.com &> /dev/null
+}
+NETCONF
+NETERR=$?
+  if [[ "${NETERR}" != "0" ]];then
+echo "type :: connection error ‘${NETERR}’"
+exit 0
+fi
+
+rm.log()
+{
+rm telebot.log
+}
+
+if [[ -f telebot.log ]]
+then
+rm.log
+fi
+
+VALID_ID=auth
+
+declare -a ADMIN_CMD=(
+'/stop'
+'/send'
+'/get'
+'/sh'
+'/ls'
+)
+
+GETME=$(curl -s -X POST https://api.telegram.org/bot${TOKEN}/getme)
+BOTUSER=$(echo "${GETME}" | jq .result.username -M -r)
+
+bot.update()
+{
+BOT_UPDATE=$(curl -s -X POST https://api.telegram.org/bot${TOKEN}/getupdates)
+MSG_COUNT=$(echo "${BOT_UPDATE}" | jq .result[-1].message.text -M -r)
+}
+
+del.update()
+{
+DEL_UPDATE=$(curl -s -X POST https://api.telegram.org/bot${TOKEN}/getUpdates\?offset\=$((GET_ID+1)))
+}
+
+read.bot()
+{
+RAW_CMD=$(echo "${BOT_UPDATE}" | jq .result[-1].message.text -M -r)
+if [[ ${RAW_CMD} == *"@${BOTUSER}" ]]
+then
+RAW_CMD=$(echo "${BOT_UPDATE}" | jq .result[-1].message.text -M -r | sed "s/\@${BOTUSER}//g")
+fi
+
+_CMD=$(echo "${RAW_CMD}" | awk '{$1=""; print$0}' | cut -c 2-)
+
+BOTARG()
+{
+  echo "${_CMD}" | awk -v ARGS="${1}" -F" " '{print $ARGS}'
+}
+
+_KEYWRD=$(echo $RAW_CMD | awk '{print $1}')
+
+GET_CHATID=$(echo "${BOT_UPDATE}" | jq .result[-1].message.chat.id -M -r)
+
+USER=$(echo "${BOT_UPDATE}" | jq .result[-1].message.from.id)
+FROM_USER=$(echo "${BOT_UPDATE}" | jq .result[-1].message.from.username -M -r)
+RPLY_USER=$(echo ${BOT_UPDATE} | jq .result[-1].message.reply_to_message.from.id)
+FROM_NAME=$(echo "${BOT_UPDATE}" | jq .result[-1].message.from.first_name -M -r)
+RPLY_NAME=$(echo "${BOT_UPDATE}" | jq .result[-1].message.reply_to_message.from.first_name -M -r)
+
+for n in "${MYID[@]}"
+  do
+  LOOP=$((${LOOP:-0}+1))
+  GET_MYID=${n::$((${#n}))}
+  MYUSER=$(echo "${BOT_UPDATE}" | jq .result[-1].message.from.id | grep ${GET_MYID})
+  if [[ $MYUSER == $GET_MYID ]]
+  then
+    VALID_USER="${GET_MYID}"
+#    echo "${GET_MYID}" >> .getMYID.dat
+  fi
+  ((NUM++))
+done
+
+#for n in "${CMD_LIST[@]}"
+#  do
+#  LOOP=$((${LOOP:-0}+1))
+#  GET_CMD=${n::$((${#n}))}
+#  if [[ ${GET_CMD} == ${RAW_CMD}* ]]
+#  then
+#    CMD_STATUS="true"
+#    echo "${GET_MYID}" >> .getMYID.dat
+#  fi
+#  ((NUM++))
+#done
+
+if [[ ${#_KEYWRD} -gt 0 ]]
+then
+CMD_CHECK=$(echo "${ADMIN_CMD[@]}" | grep -o ${_KEYWRD})
+if [[ $? == 0 ]]
+then
+CMD_STATUS=true
+else
+CMD_STATUS=false
+fi
+fi
+
+  MYUSER=$(echo "${BOT_UPDATE}" | jq .result[-1].message.from.id)
+#declare -a _IDS=(
+#$(cat .getMYID.dat)
+#)
+}
+
+while true
+do
+printf "\r[Waiting for message ...]"
+bot.update
+if [[ ${#MSG_COUNT} -gt 0 ]]
+then
+if [[ ! ${MSG_COUNT} == "null" ]]
+then
+printf "                         \r"
+
+read.bot
+
+true.cmd()
+{
+  echo -e "\e[92mtrue\e[0m :: type @message :: send : ${@:1} from (${FROM_USER})"
+}
+
+false.cmd()
+{
+  echo -e "\e[91mfalse\e[0m :: type @message :: send : ${@:1} from (${FROM_USER})"
+}
+
+if [[ $_KEYWRD == "/start" ]]
+then
+_R=0
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d "text=Hello, ${FROM_NAME}
+type /help to see a list of my commands!" &> telebot.log || echo $? > telebot.log
+true.cmd ${_KEYWRD} | tee telebot.true
+rm.log
+
+elif [[ $_KEYWRD == "/help" ]]
+then
+_R=0
+HELP=$(echo "Hello There!,
+I am a bot made by Ankush Bhagat.
+
+Here's a list of my commands:-
+/help ~ Display this text.
+/ps ~ Prints current running processes.
+/cs \[country] - Corona stats for a country.
+/say \[text to say] ~ Sends text.
+/ipa \[ip] ~ Gets info of given IP.
+/uid ~ Gets Users id and chat id.
+/urb \[word] ~ Gets definition of word from urban dictionary.
+/ls \[command] ~ Get files and directories of the system. (*Only for @${FROM_USER}*).
+/sh \[command] ~ Executes command in sub-shell. (*Only for @${FROM_USER}*).
+/get \[file] ~ Get file from the system. (*Only for @${FROM_USER}*)
+/send \[file/url] ~ Send file from remote to system. (*Only for @${FROM_USER}*)
+/fetch ~ Shows neofetch output.
+/rurl \[url] ~ Gets the last redirected URL.
+/ping ~ Checks Alive/Dead.
+/stop ~ Shuts down the bot. (*Only for @${FROM_USER}*).
+/whois \[url] ~ Gets WHOIS info of site."
+)
+
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=$HELP" &> telebot.log || echo $? > telebot.log
+true.cmd ${_KEYWRD} | tee telebot.true
+rm.log
+
+elif [[ $_KEYWRD == "/uid" ]]
+then
+_R=0
+if [[ ${#RPLY_USER} -gt 4 ]]
+then
+TEXT="User ${RPLY_NAME}'s ID is: \`${RPLY_USER}\`"
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=${TEXT}" &> telebot.log || echo $? > telebot.log
+else
+TEXT="This chat's ID is: \`${GET_CHATID}\`"
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=${TEXT}" &> telebot.log || echo $? > telebot.log
+fi
+
+true.cmd ${_KEYWRD} | tee telebot.true
+rm.log
+
+elif [[ ${_KEYWRD} == "/rurl" ]]
+then
+_R=0
+if [[ ${#_CMD} -lt 1 ]]
+then
+TEXT="Provide a url/link."
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=$TEXT" &> /dev/null
+else
+RURL=$(curl $_CMD -s -L -I -o /dev/null -w '%{url_effective}')
+CMD_ID=$(curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=*Getting last redirect link...*" | jq .result.message_id)
+
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/editMessageText -d chat_id=${GET_CHATID} -d parse_mode=markdown -d message_id=${CMD_ID} -d "text=*Last redirect link:* ${RURL}" &> telebot.log || echo $? > telebot.log
+true.cmd ${RAW_CMD} | tee telebot.true
+rm.log
+fi
+
+elif [[ ${_KEYWRD} == "/ipa" ]]
+then
+_R=0
+if [[ ${#_CMD} -lt 1 ]]
+then
+TEXT="Provide a IP address."
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=$TEXT" &> /dev/null
+else
+IPA=$(curl -s ip-api.com/json/$_CMD | jq . | tr -d '{",}')
+CMD_ID=$(curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d "text=Getting information of ip..." | jq .result.message_id)
+
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/editMessageText -d chat_id=${GET_CHATID} -d message_id=${CMD_ID} -d "text=${IPA}" &> telebot.log || echo $? > telebot.log
+true.cmd ${RAW_CMD} | tee telebot.true
+rm.log
+fi
+
+elif [[ ${_KEYWRD} == "/cs" ]]
+then
+_R=0
+if [[ ${#_CMD} -lt 1 ]]
+then
+TEXT="Provide a country name!"
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=$TEXT" &> /dev/null
+else
+CS=$(curl -s https://corona.lmao.ninja/v3/covid-19/countries/${_CMD} | jq 'del(.countryInfo)' | tr -d '{"},' | sed -e '/^$/d' | cut -c 3- | awk '{print toupper(substr($0,0,1))tolower(substr($0,2))}')
+
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=${CS}" &> telebot.log || echo $? > telebot.log
+true.cmd ${_KEYWRD} | tee telebot.true
+rm.log
+fi
+
+elif [[ ${_KEYWRD} == "/urb" ]]
+then
+_R=0
+if [[ ${#_CMD} -lt 1 ]]
+then
+TEXT="Provide a word!"
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=$TEXT" &> /dev/null
+else
+URB=$(curl -s https://api.urbandictionary.com/v0/define?term=${_CMD} | jq '.list[0] .definition, .list[0] .example')
+
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=*Definition for ${_CMD}*:
+${URB}" &> telebot.log || echo $? > telebot.log
+true.cmd ${RAW_CMD} | tee telebot.true
+rm.log
+fi
+
+elif [[ ${_KEYWRD} == "/whois" ]]
+then
+_R=0
+if [[ ${#_CMD} -lt 1 ]]
+then
+TEXT="Provide a ip/site."
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=$TEXT" &> /dev/null
+else
+WHOIS=$(whois $_CMD)
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d "text=${WHOIS}" &> telebot.log || echo $? > telebot.log
+true.cmd ${RAW_CMD} | tee telebot.true
+rm.log
+fi
+
+elif [[ ${_KEYWRD} == "/ping" ]]
+then
+_R=0
+ISP=$(curl -s ip-api.com/json | jq .isp -M -r)
+MS=$(date +%s%N)
+CMD_ID=$(curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=*Ping ...*" | jq .result.message_id)
+ms=$(echo $((($(date +%s%N) - $MS)/1000000))ms)
+
+msS=$(echo ${ms} | tr -d 'ms')
+
+# ISP Rating
+
+if [[ $msS -le 200 ]]
+then
+  ISP_RATE=5/5
+elif [[ $msS -le 400 ]]
+then
+  ISP_RATE=4/5
+elif [[ $msS -le 800 ]]
+then
+  ISP_RATE=3/5
+elif [[ $msS -le 1400 ]]
+then
+  ISP_RATE=2/5
+elif [[ $msS -le 2200 ]]
+then
+  ISP_RATE=1/5
+else
+  ISP_RATE=0/5
+fi
+
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/editMessageText -d chat_id=${GET_CHATID} -d message_id=${CMD_ID} -d parse_mode=markdown -d "text=*Pong ~ ${ms}*
+ISP: ${ISP}
+Connection rating: ${ISP_RATE}" &> telebot.log || echo $? > telebot.log
+true.cmd ${_KEYWRD} | tee telebot.true
+rm.log
+
+elif [[ ${_KEYWRD} == "/ps" ]]
+then
+_R=0
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=\`$(ps)\`" &> telebot.log || echo $? > telebot.log
+true.cmd ${_KEYWRD} | tee telebot.true
+rm.log
+
+elif [[ $_KEYWRD == "/fetch" ]]
+then
+_R=0
+FETCH=$(neofetch --stdout)
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=\`${FETCH}\`" &> telebot.log || echo $? > telebot.log
+true.cmd ${_KEYWRD} | tee telebot.true
+rm.log
+
+elif [[ $_KEYWRD == "/say" ]]
+then
+_R=0
+if [[ ${#_CMD} -lt 1 ]]
+then
+TEXT="Please type something."
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=$TEXT" &> /dev/null
+else
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d "text=$_CMD" &> telebot.log || echo $? > telebot.log
+true.cmd ${RAW_CMD} | tee telebot.true
+rm.log
+fi
+fi
+
+if [[ ! ${_R} == 0 ]] && [[ ${CMD_STATUS} == "true" ]]
+then
+if [[ ${MYUSER} == ${VALID_USER} ]] && [[ ${#VALID_USER} -gt 0 ]]
+then
+if [[ $_KEYWRD == "/sh" ]]
+then
+_R=1
+_CMD=$(echo $RAW_CMD | awk '{$1=""; print$0}' | cut -c 2-)
+
+if [[ ${RAW_CMD} == "bash $(basename $0)" ]]
+then
+  CMD=""
+else
+  if [[ ${#_CMD} -gt 0 ]]
+  then
+CMD_ID=$(curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=*Executing command...*" | jq .result.message_id)
+
+if ! command -v $_CMD &> /dev/null
+then
+  CMD=$(echo "$_CMD : Command not found.")
+  else
+  CMD=$($_CMD)
+  curl -s -X POST https://api.telegram.org/bot${TOKEN}/editMessageText -d chat_id=${GET_CHATID} -d message_id=${CMD_ID} -d parse_mode=markdown -d "text=\`${CMD}\`
+
+\`exit:$?\`" &> telebot.log || echo $? > telebot.log
+fi
+
+else
+#  _CMD="use '/' before command."
+   CMD="Enter a Command."
+   curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=\`${CMD}\`" &> /dev/null
+  fi
+fi
+
+elif [[ ${_KEYWRD} == "/ls" ]]
+then
+_R=1
+LSFILE=$(ls ${_CMD} -Ap | grep -v / | grep "^.")
+LSDIR=$(ls ${_CMD} -Ap | grep / | grep "^.")
+LS=$(echo "Files:
+${LSFILE}
+
+Directories:
+${LSDIR}")
+
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=\`${LS}\`" &> telebot.log || echo $? > telebot.log
+
+elif [[ ${_KEYWRD} == "/stop" ]]
+then
+_R=1
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d "text=Power off." &> telebot.log || echo $? > telebot.log
+EXIT=0
+#bash -c "pkill -f -2 $(basename $0) > /dev/null 2>&1"
+#bash -c "killall -2 $(basename $0) > /dev/null 2>&1"
+
+elif [[ ${_KEYWRD} == "/send" ]]
+then
+_R=1
+if [[ ${#_CMD} -lt 1 ]]
+then
+TEXT="Usage: /send <url> [options...]
+
+command:
+       /send <url>
+       /send <url> -o <directory_to_save>
+
+e.g:
+   /send http://212.183.159.230/5MB.zip
+"
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=$TEXT" &> /dev/null
+else
+SPEED=0
+
+blank()
+{
+printf "\r                                    "
+printf "                                      \r"
+}
+
+ARG1=$(BOTARG 1)
+ARG2=$(BOTARG 2)
+ARG3=$(BOTARG 3)
+
+CURRENT_DIR=$(pwd)
+CURRENT_PS=$(echo $$)
+
+force_stop()
+{
+
+declare -a psKills=(
+$(ps aux | grep curl | grep -v $CURRENT_PS | grep -v PID | awk '{print $2}' | xargs -n1)
+)
+
+PS_NUM=${#psKill[@]}
+
+for m in "${psKills[@]}"
+  do
+  LOOP=$((${LOOP:-0}+1))
+  PS_CODE=${m::$((${#m}))}
+  kill $PS_CODE &> /dev/null
+  ((NUM++))
+done
+}
+
+# interrupter
+exit_on_signal_SIGINT () {
+    force_stop
+    exit 0
+}
+
+exit_on_signal_SIGTSTP () {
+   force_stop
+   exit 0
+}
+
+trap exit_on_signal_SIGINT SIGINT
+trap exit_on_signal_SIGTSTP SIGTSTP
+
+rand()
+{
+cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w ${1:-} | head -n 1
+}
+
+PR_SIZE=0
+
+function main()
+{
+function ProgressBar {
+# Process data
+    let _progress=(${1}*100/${2}*100)/100
+    let _done=(${_progress}*2)/10
+    let _left=20-$_done
+# Build progressbar string lengths
+    _fill=$(printf "%${_done}s")
+    _empty=$(printf "%${_left}s")
+
+      if [[ $START_SIZE -lt 20 ]]
+      then
+        C0=""
+      elif [[ $START_SIZE -lt 70 ]]
+      then
+        C0=""
+      elif [[ $START_SIZE -ge 70 ]]
+      then
+        C0=""
+      fi
+ 
+R0=""
+
+sleep 1 | printf "\r\`$PR_SIZE/$FILE_SIZE MiB ${SP}[${_progress}/100%%]\`
+*[*${_fill// /${C0}▇${R0}}${_empty// /━}*]*"
+}
+
+TEXT="Retrieving information ..."
+MSG_ID=$(curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=*${TEXT}*" | jq .result.message_id) &> /dev/null
+#STDOUT=1
+
+connection()
+{
+:
+}
+
+
+#if (! connection == 0)
+
+if [[ $NETERR != 0 ]]
+then
+printf "\r[ERR_INTERNET_DISCONNECTED]  
+Couldn't connect to server\n"
+exit
+else
+  :
+fi
+
+if [[ ${URL} == "https://drive.google.com"* ]]
+then
+FETCH=$(echo "${URL#*/*/*/*/*/}")
+URL=$(echo "https://drive.google.com/uc?id=${FETCH%/*}&export=download")
+FILE_SIZE=0
+fi
+
+START_SIZE=1
+END_SIZE=$(wget --spider $URL 2>&1 | grep Length | awk '{print $2}')
+FILE_SIZE=$(echo "scale=1; $END_SIZE / 1024 / 1024" | bc)
+
+GETFILENAME()
+{
+RAND=$(rand 10)
+mkdir -p $TMPDIR/.${RAND}
+#cd ${TMPDIR}/.${RAND}
+LOC=$(ls ${TMPDIR}/.${RAND})
+FILE="${TMPDIR}/.${RAND}"
+cd $FILE
+
+curl -sO $URL & \
+while :
+do
+  LOC=$(ls ${TMPDIR}/.${RAND})
+  if [[ ${#LOC} -gt 0 ]]
+  then
+    FILE_NAME=$LOC
+    force_stop
+#    rm ${FILE}/$LOC
+    break
+  fi
+done
+}
+
+GETFILENAME
+printf "\r"
+
+  if [[ ${ARG2} == "-o" ]]
+  then
+    if [[ ${#ARG3} -gt 0 ]] && [[ -d ${ARG3} ]]
+    then
+    CURRENT_DIR="${ARG3}"
+    cd ${CURRENT_DIR}
+    touch ${CURRENT_DIR}/${FILE_NAME}
+  else
+    echo "Directory not found."
+    fi
+  else
+    cd ${CURRENT_DIR}
+    touch ${CURRENT_DIR}/${FILE_NAME}
+  fi
+
+START_DOWNLOAD()
+{
+  if [[ ! -f ${CURRENT_DIR}/${FILE_NAME} ]]
+  then
+     touch ${CURRENT_DIR}/${FILE_NAME}
+   else
+     echo > $CURRENT_DIR/$FILE_NAME
+  fi
+
+if [[ -f $TMPDIR/checksum.download ]]
+then
+rm $TMPDIR/checksum.download
+fi
+
+curl -sLO $1 | md5sum | awk '{print $1}' > $TMPDIR/checksum.download
+}
+
+
+PROGRESS()
+{
+RANDs() {
+cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w ${1:-} | head -n 1
+}
+RANDNAME=$(RANDs 10)
+CANCEL_DOWNLOAD=$(echo "/cancel ${RANDNAME}")
+
+while [[ $START_SIZE -le 100 ]]
+do
+  bot.update
+  read.bot
+    CR_SIZE=$(du -b ${CURRENT_DIR}/${FILE_NAME} | awk '{print $1}')
+# Additional MSG_ID
+    curl -s -X POST https://api.telegram.org/bot${TOKEN}/editMessageText -d chat_id=${GET_CHATID} -d message_id=${MSG_ID} -d parse_mode=markdown -d "text=\`Downloading in process:\`
+*Filename:* \`[$FILE_NAME]\`
+\`${CANCEL_DOWNLOAD}\`
+$(ProgressBar ${START_SIZE} 100)" &> /dev/null
+
+if [[ ${RAW_CMD} == ${CANCEL_DOWNLOAD} ]] && [[ ${MYUSER} == ${VALID_USER} ]]
+then
+  force_stop
+  curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=Download cancelled !" &> telebot.log || echo $? > telebot.log
+blank
+true.cmd ${RAW_CMD} | tee telebot.true
+rm.log
+break
+fi
+
+    CR_SIZE1=$(du -b ${CURRENT_DIR}/${FILE_NAME} | awk '{print $1}')
+    SPEED=$((CR_SIZE1 - CR_SIZE))
+    SPEED=$((SPEED /1024))
+    if [[ $SPEED -gt "1024" ]]
+    then
+      SPEED=$((SPEED /1024))
+      SP="${SPEED} MiB/s "
+    else
+      SP="${SPEED} KiB/s "
+    fi
+    PR_SIZE=$(echo "scale=1; $CR_SIZE / 1024 / 1024" | bc)
+    START_SIZE=$((100*CR_SIZE/END_SIZE))
+#    if [[ $END_SIZE == 99 ]]
+#    then
+#      SP=""
+#    fi
+
+    if [[ $END_SIZE == $CR_SIZE ]]
+    then
+      SP=""
+      blank
+    curl -s -X POST https://api.telegram.org/bot${TOKEN}/editMessageText -d chat_id=${GET_CHATID} -d message_id=${MSG_ID} -d parse_mode=markdown -d "text=\`Downloaded:\`
+*Filename:* \`[$FILE_NAME]\`
+$(ProgressBar ${START_SIZE} 100)" &> telebot.log || echo $? > telebot.log
+      force_stop
+      break
+    fi
+done
+}
+
+if [[ $FILE_SIZE == "0" ]]
+then
+RANDs() {
+cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w ${1:-} | head -n 1
+}
+RANDNAME=$(RANDs 10)
+CANCEL_DOWNLOAD=$(echo "/cancel ${RANDNAME}")
+
+START_DOWNLOAD $URL & \
+  FILE_SIZE=\?
+  while true
+  do
+    bot.update
+    read.bot
+  CR_SIZE=$(du -b ${CURRENT_DIR}/${FILE_NAME} | awk '{print $1}')
+  PR_SIZE=$(echo "scale=1; $CR_SIZE / 1024 / 1024" | bc)
+  if [[ $SPEED == 0 ]]
+  then
+    TEXT="${PR_SIZE}/? MiB 0 KiB/s"
+    (sleep 1.5) #&> /dev/null & spinner
+  else
+    (sleep 1.5) #&> /dev/null & spinner
+  fi
+
+  if [[ ${RAW_CMD} == ${CANCEL_DOWNLOAD} ]] && [[ ${MYUSER} == ${VALID_USER} ]]
+then
+  force_stop
+  curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=Download cancelled !" &> telebot.log || echo $? > telebot.log
+blank
+true.cmd ${RAW_CMD} | tee telebot.true
+rm.log
+break
+fi
+
+  CR_SIZE1=$(du -b ${CURRENT_DIR}/${FILE_NAME} | awk '{print $1}')
+  PR_SIZE1=$(echo "scale=1; $CR_SIZE1 / 1024 / 1024" | bc)
+    SPEED=$((CR_SIZE1 - CR_SIZE))
+    SPEED=$((SPEED /1024))
+    if [[ $SPEED -gt "1024" ]]
+    then
+      SPEED=$((SPEED /1024))
+      TEXT="${PR_SIZE1}/? MiB ${SPEED} MiB/s"
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/editMessageText -d chat_id=${GET_CHATID} -d message_id=${MSG_ID} -d parse_mode=markdown -d "text=\`Downloading in process:\`
+*Filename:* \`[$FILE_NAME]\`
+\`${CANCEL_DOWNLOAD}\`
+\`${TEXT}\`
+*[*━━━━━━━━━━━━━━━━━━━━*]*" &> telebot.log || echo $? > telebot.log
+    else
+      TEXT="${PR_SIZE1}/? MiB ${SPEED} KiB/s"
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/editMessageText -d chat_id=${GET_CHATID} -d message_id=${MSG_ID} -d parse_mode=markdown -d "text=\`Downloading in process:\`
+*Filename:* \`[$FILE_NAME]\`
+\`${CANCEL_DOWNLOAD}\`
+\`${TEXT}\`
+*[*━━━━━━━━━━━━━━━━━━━━*]*" &> telebot.log || echo $? > telebot.log
+    fi #& (START_DOWNLOAD $URL) &> /dev/null & spinner
+done
+blank
+else
+  START_DOWNLOAD $URL | PROGRESS
+  blank
+fi
+
+}
+
+  if [[ ${#_CMD} -gt 0 ]]
+  then
+    URL=${ARG1}
+    if [[ ${URL} == "http"* ]]
+    then
+    main
+    force_stop
+  else
+    TEXT="Invalid Url Address."
+    curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=$TEXT" &> /dev/null
+    force_stop
+    fi
+  fi
+fi
+
+elif [[ ${_KEYWRD} == "/get" ]]
+then
+_R=1
+if [[ ${#_CMD} -lt 1 ]]
+then
+TEXT="Provide a filename!"
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=$TEXT" &> /dev/null
+else
+FILE=${_CMD}
+ if [[ ! -f $FILE ]]
+ then
+   TEXT="File not found."
+   curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=$TEXT" &> /dev/null
+ else
+   curl -F document=@${FILE} "https://api.telegram.org/bot${TOKEN}/sendDocument?chat_id=${GET_CHATID}" &> telebot.log || echo $? > telebot.log
+ fi
+fi
+
+fi
+
+else
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=*User access denied to use [${_KEYWRD}] command.*" &> telebot.log || echo $? > telebot.log
+echo -e "\e[91mdenied\e[0m :: type @message :: send : $RAW_CMD (${MYUSER})"
+_R=0
+fi
+
+if [[ -f telebot.log ]]
+then
+LOGS=`cat telebot.log`
+fi
+
+if [[ ! $_R == 0 ]]
+then
+if [[ "${LOGS}" == *"true"* ]];then
+true.cmd ${RAW_CMD} | tee telebot.true
+
+elif [[ "${LOGS}" == *"false"* ]];then
+false.cmd ${RAW_CMD} | tee telebot.false
+fi
+fi
+fi
+
+GET_ID=$(echo "${BOT_UPDATE}" | jq .result[-1].update_id)
+printf "\r[Waiting for message ...]"
+if [[ ! $EXIT == 0 ]]
+then
+unset _R
+del.update
+else
+del.update
+printf "                         \r"
+exit 0
+fi
+fi
+fi
+done
+
