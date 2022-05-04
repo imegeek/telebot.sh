@@ -97,6 +97,7 @@ printf "                                      \r"
 exit_on_signal_SIGINT () {
     printf "\r[Disconnecting telebot ...]"
     DEL_ALIVE=$(curl -s https://api.telegram.org/bot${TOKEN}/deleteMessage\?chat_id\=${MYID}\&message_id\=${ALIVE_MSG_ID})
+    del.update
     blank
     exit 0
 }
@@ -129,6 +130,7 @@ fi
 VALID_ID=auth
 
 declare -a ADMIN_CMD=(
+'/hibernate'
 '/stop'
 '/send'
 '/get'
@@ -231,6 +233,30 @@ fi
 
 while true
 do
+if [[ ${HIBERNATE} == "true" ]]
+then
+if [[ ${MYUSER} == ${VALID_USER}  ]] && [[ ${#VALID_USER} -gt 0  ]] &&[[ ${_KEYWRD} == "/hibernate" ]] && [[ ${_CMD} == "off" ]]
+then
+HIBERNATE="false"
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d "text=Hibernation is turned off." &> telebot.log || echo $? > telebot.log
+fi
+
+if [[ ${_KEYWRD} == "/hibernate" ]] && [[ ${_CMD} == "on" ]]
+then 
+blank
+_CMD=""
+fi
+
+printf "\r[Hibernation is on]"
+bot.update
+if [[ ${#MSG_COUNT} -gt 0 ]]
+then
+if [[ ! ${MSG_COUNT} == "null" ]]
+then
+read.bot
+fi
+fi
+else
 printf "\r[Waiting for message ...]"
 bot.update
 if [[ ${#MSG_COUNT} -gt 0 ]]
@@ -267,8 +293,9 @@ I am a bot made by Ankush Bhagat.
 
 Here's a list of my commands:-
 /help ~ Display this text.
+/hibernate \[on/off] ~ Hibernation control. (*Only for @${ADMIN_USER}*)
 /ps ~ Prints current running processes.
-/cs \[country] - Corona stats for a country.
+/cs \[country] ~ Corona stats for a country.
 /say \[text to say] ~ Sends text.
 /ipa \[ip] ~ Gets info of given IP.
 /uid ~ Gets Users id and chat id.
@@ -492,6 +519,13 @@ Directories:
 ${LSDIR}")
 
 curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=\`${LS}\`" &> telebot.log || echo $? > telebot.log
+
+
+elif [[ ${_KEYWRD} == "/hibernate" ]] && [[ ${_CMD} == "on" ]]
+then
+HIBERNATE=true
+curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d "text=Hibernation is turned on." &> telebot.log || echo $? > telebot.log
+del.update
 
 elif [[ ${_KEYWRD} == "/stop" ]]
 then
@@ -874,6 +908,7 @@ else
 del.update
 printf "                         \r"
 exit 0
+fi
 fi
 fi
 fi
