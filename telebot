@@ -41,12 +41,16 @@ then
 {
   "token": "${2}",
   "get": [
+
+// Main ID
+
     {
       "myid": "${4}"
    }//,
 
 // Add more id's if have.
 // remove comments '//' to begin.
+
 //    {
 //      "myid": "..."
 //    },
@@ -83,9 +87,28 @@ exit 1
 fi
 fi
 
+blank()
+{
+printf "\r                                    "
+printf "                                      \r"
+}
+
+# interrupter
+exit_on_signal_SIGINT () {
+    printf "\r[Disconnecting telebot ...]"
+    DEL_ALIVE=$(curl -s https://api.telegram.org/bot${TOKEN}/deleteMessage\?chat_id\=${MYID}\&message_id\=${ALIVE_MSG_ID})
+    blank
+    exit 0
+}
+
+trap exit_on_signal_SIGINT SIGINT
+
 NETCONF() {
 curl -Is http://www.google.com &> /dev/null
 }
+
+printf "\r[Checking connection ...]"
+
 NETCONF
 NETERR=$?
   if [[ "${NETERR}" != "0" ]];then
@@ -113,8 +136,17 @@ declare -a ADMIN_CMD=(
 '/ls'
 )
 
+printf "\r[Getting ready telebot ...]"
+
+ALIVE_MSG=$(curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${MYID} -d "text=I'm Alive send me /help")
+
+ADMIN_USER=$(echo "${ALIVE_MSG}" | jq .result.chat.username -M -r)
+ALIVE_MSG_ID=$(echo "${ALIVE_MSG}" | jq .result.message_id)
+
 GETME=$(curl -s -X POST https://api.telegram.org/bot${TOKEN}/getme)
 BOTUSER=$(echo "${GETME}" | jq .result.username -M -r)
+
+blank
 
 bot.update()
 {
@@ -129,6 +161,8 @@ DEL_UPDATE=$(curl -s -X POST https://api.telegram.org/bot${TOKEN}/getUpdates\?of
 
 read.bot()
 {
+DEL_ALIVE=$(curl -s https://api.telegram.org/bot${TOKEN}/deleteMessage\?chat_id\=${MYID}\&message_id\=${ALIVE_MSG_ID})
+
 RAW_CMD=$(echo "${BOT_UPDATE}" | jq .result[-1].message.text -M -r)
 if [[ ${RAW_CMD} == *"@${BOTUSER}" ]]
 then
@@ -160,6 +194,7 @@ for n in "${MYID[@]}"
   if [[ $MYUSER == $GET_MYID ]]
   then
     VALID_USER="${GET_MYID}"
+    ADMIN_USER=${FROM_USER}
 #    echo "${GET_MYID}" >> .getMYID.dat
   fi
   ((NUM++))
@@ -238,14 +273,14 @@ Here's a list of my commands:-
 /ipa \[ip] ~ Gets info of given IP.
 /uid ~ Gets Users id and chat id.
 /urb \[word] ~ Gets definition of word from urban dictionary.
-/ls \[command] ~ Get files and directories of the system. (*Only for @${FROM_USER}*).
-/sh \[command] ~ Executes command in sub-shell. (*Only for @${FROM_USER}*).
-/get \[file] ~ Get file from the system. (*Only for @${FROM_USER}*)
-/send \[file/url] ~ Send file from remote to system. (*Only for @${FROM_USER}*)
+/ls \[command] ~ Get files and directories of the system. (*Only for @${ADMIN_USER}*).
+/sh \[command] ~ Executes command in sub-shell. (*Only for @${ADMIN_USER}*).
+/get \[file] ~ Get file from the system. (*Only for @${ADMIN_USER}*)
+/send \[file/url] ~ Send file from remote to system. (*Only for @${ADMIN_USER}*)
 /fetch ~ Shows neofetch output.
 /rurl \[url] ~ Gets the last redirected URL.
 /ping ~ Checks Alive/Dead.
-/stop ~ Shuts down the bot. (*Only for @${FROM_USER}*).
+/stop ~ Shuts down the bot. (*Only for @${ADMIN_USER}*).
 /whois \[url] ~ Gets WHOIS info of site."
 )
 
@@ -483,12 +518,6 @@ e.g:
 curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${GET_CHATID} -d parse_mode=markdown -d "text=$TEXT" &> /dev/null
 else
 SPEED=0
-
-blank()
-{
-printf "\r                                    "
-printf "                                      \r"
-}
 
 ARG1=$(BOTARG 1)
 ARG2=$(BOTARG 2)
